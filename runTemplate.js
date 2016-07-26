@@ -5,6 +5,23 @@ var htmlParse = require('cheerio'),
     prettyHtml = require('js-beautify').html,
     errorHandler = require('./errorHandler.js');
 
+function doesExist(thingIn) {
+    return typeof thingIn !== 'undefined' && thingIn !== null && thingIn !== '';
+}
+
+function checkFileVars(context, varsArray) {
+    var errors = [];
+    varsArray.forEach(function (varIn) {
+        if ((varIn.isMandatory && !doesExist(context[varIn.name])) || context[varIn.name] === false) {
+            errors.push({
+                name: varIn.name,
+                missing: true
+            });
+        }
+    });
+    return errors;
+}
+
 function makeFileVars(fileObj, varsArray) {
     var contextOut = {},
         $ = htmlParse.load(fileObj.contents);
@@ -14,14 +31,12 @@ function makeFileVars(fileObj, varsArray) {
 
         if (varIn.command === 'html') {
             contextOut[varIn.name] = selected.html();
+        } else if (varIn.command === 'bool') {
+            contextOut[varIn.name] = doesExist(selected.html());
         } else {
             contextOut[varIn.name] = selected.attr(varIn.command);
         }
 
-        //check if we are missing a required var
-        if (varIn.isMandatory && (typeof contextOut[varIn.name] === 'undefined' || contextOut[varIn.name] === null)) {
-            throw new Error('The mandatory variable "' + varIn.name + '" with selector "' + varIn.selector + '" did not select anything in the file "' + fileObj.name + '".');
-        }
     });
 
     //add the default helper vars
@@ -32,8 +47,15 @@ function makeFileVars(fileObj, varsArray) {
 
 module.exports = function runTemplate(fileObj, varsArray, hbTemplate) {
     //get vars from file
-    var context = makeFileVars(fileObj, varsArray);
+    var context = makeFileVars(fileObj, varsArray),
+        errors = checkFileVars(context, varsArray);
 
-    //run template
-    return prettyHtml(hbTemplate(context));
+    if (errors.length === 0) {
+        //run template
+        fileObj.processed = prettyHtml(hbTemplate(context));
+    } else {
+        fileObj.processed = '';
+    }
+    //will be empty if no errors
+    fileObj.errors = errors;
 };

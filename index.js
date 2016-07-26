@@ -5,7 +5,8 @@
 
 var fs = require('fs'),
     path = require('path'),
-    errorHandler = require('./errorHandler.js');
+    errorHandler = require('./errorHandler.js'),
+    chalk = require('chalk');
 
 function readFile(fileName) {
     var fileText;
@@ -33,38 +34,58 @@ function readFiles(file, callback) {
     });
 }
 
+function dirExist(dirPath) {
+    //does it exist?
+    try {
+        //yes it does try again
+        fs.statSync(dirPath).isDirectory();
+        return true;
+    } catch (e) {
+        //error nope so does not exist
+        return false;
+    }
+}
+
 function makeWriteFiles(dirIn) {
     return function writeFiles(file, callback) {
-        var pathOut = path.join(dirIn, file.name);
+        var pathOut,
+            fileTextOut;
+        //do we have errors?
+        if (file.errors.length === 0) {
+            //nope!
+            //set path and text
+            pathOut = path.join(dirIn, file.name);
+            fileTextOut = file.processed;
+        } else {
+            //yep
+            //folder name
+            pathOut = path.join(dirIn, "Missing " + file.errors[0].name);
 
-        fs.writeFile(pathOut, file.processed, 'utf8', function (err) {
+            //if the sub folder does not exist make it
+            if (!dirExist(pathOut)) {
+                fs.mkdirSync(pathOut);
+            }
+
+            //make full path and text out
+            pathOut = path.join(pathOut, file.name);
+            fileTextOut = file.contents;
+        }
+
+        //writeit!
+        fs.writeFile(pathOut, fileTextOut, 'utf8', function (err) {
             if (err) {
                 callback(err);
             } else {
                 callback(null);
             }
         });
-
     };
 }
 
-function makeDir(currentFolder, folderNameIn) {
+function makeMainDir(currentFolder, folderNameIn) {
     var num = 1,
         pathOut = path.join(currentFolder, folderNameIn);
     //this will make sure that 1 does not get appened only greater than 1
-    return pathOut;
-
-    function dirExist(dirPath) {
-        //does it exist?
-        try {
-            //yes it does try again
-            fs.statSync(dirPath).isDirectory();
-            return true;
-        } catch (e) {
-            //error nope so does not exist
-            return false;
-        }
-    }
 
     //if the folder already exists
     while (dirExist(pathOut)) {
@@ -72,8 +93,8 @@ function makeDir(currentFolder, folderNameIn) {
         pathOut = path.join(currentFolder, folderNameIn + num);
     }
 
-    //found one make it and return the name
-    fs.mkdir(pathOut);
+    //found one, make it and return the name
+    fs.mkdirSync(pathOut);
 
     return pathOut;
 
@@ -188,6 +209,29 @@ function makeVarsObject(flags) {
     return vars;
 }
 
+function printCounts(counts) {
+    var errorText = '';
+
+    Object.keys(counts).forEach(function (countKey) {
+        if (countKey !== "workedSuccessfully" && counts[countKey] > 0) {
+            errorText += "Variable: " + countKey + ", " + counts[countKey] + " files";
+        }
+    });
+
+    console.log('');
+    console.log(chalk.green('---------------- Files Successfully Processed --------------------'));
+    console.log("Successfully Processed:", counts.workedSuccessfully, "files");
+    if (errorText !== '') {
+        console.log('');
+        console.log(chalk.red('---------------- Files Missing Mandatory Variables --------------------'));
+        console.log(errorText);
+
+    }
+}
+
+/****************************************************************/
+/*************************** START ******************************/
+/****************************************************************/
 try {
     var folder = process.cwd(),
         async = require('async'),
@@ -203,30 +247,47 @@ try {
         }
 
         var processed,
-            outputDir;
+            outputDir,
+            counts = {
+                workedSuccessfully: 0
+            };
+        //set up counts
+        varsArray.forEach(function (varIn) {
+            if (varIn.isMandatory) {
+                counts[varIn.name] = 0;
+            }
+        });
 
         processed = results.map(function (fileObj) {
-            try {
-                fileObj.processed = runTemplate(fileObj, varsArray, hbTemplate);
-            } catch (e) {
-                errorHandler.handle(e.message);
+            //fileObj has a processed prop added and an error prop if needed.
+            runTemplate(fileObj, varsArray, hbTemplate);
+            //also record the success count
+            if (fileObj.errors.length === 0) {
+                counts.workedSuccessfully += 1;
+            } else {
+                counts[fileObj.errors[0].name] += 1;
             }
             return fileObj;
         });
 
         //make the Dir
-        outputDir = makeDir(folder, flags.templateName);
+        outputDir = makeMainDir(folder, flags.templateName);
 
         //write files
         async.each(processed, makeWriteFiles(outputDir), function (err, results) {
             if (err) {
                 errorHandler.handle('Problem while writing edited html files.', err.message);
             }
+
+            //tell them where they ended up!
+            console.log("");
+            console.log(chalk.green("The processed files are located in the following directory:"));
+            console.log(path.relative('.', outputDir));
+            printCounts(counts);
         });
     });
 
 } catch (e) {
     //nothing
-    console.log('we throw an error we didn\'t know about');
-    console.log(e.message);
+
 }

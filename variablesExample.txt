@@ -1,4 +1,4 @@
-*middle: #article | html
-*title: #topBar | html
+*bulk| #article | html
+*title| #topBar | html
 *bannerSrc| #content img:first-of-type | src
-isSplash: .splash
+isSplash| .splash | bool

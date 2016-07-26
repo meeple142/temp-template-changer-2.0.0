@@ -14,6 +14,10 @@ module.exports = {
         console.log('For example template.handlebars:');
         console.log('    template-changer -t');
         console.log('');
+        console.log('Also remember that the helper variables are always avalible in your template:');
+        console.log('    fileName');
+        console.log('    fileContents');
+        console.log('');
         console.log('\nThe edited html files will all be placed in a folder named after the template.');
         console.log('\nIf the folder name already exsits then it will append a number to the end of the template name.');
         console.log('-------------------------------------------------------------------------------');
@@ -26,8 +30,8 @@ module.exports = {
         } else {
 
             console.log(messageOut);
-            //this.printHelp();
-            //throw new Error('');
+            this.printHelp();
+            throw '';
         }
     }
 };
