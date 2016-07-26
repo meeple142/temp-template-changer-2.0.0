@@ -1,0 +1,18 @@
+//parse command line flags
+
+//read vars
+//parse vars
+
+//read template
+//prep template with HB
+
+//get html file names
+//async 
+    //read html files
+    //get vars from file
+    //check if we have mandatory vars
+    
+    //run template
+    
+    //write new html files
+    
